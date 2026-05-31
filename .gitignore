@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 학생 실행 결과물
+mlruns/
+baseline/models/
+solution/models/production_model/
+solution/logs/*.csv
+solution/reports/*.json
+solution/reports/*.txt
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
