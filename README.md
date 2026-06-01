@@ -62,7 +62,8 @@ mlops-mlflow-hw/
 │   ├── valid.csv
 │   └── new_data.csv
 ├── scripts/
-│   └── check_hw.py
+│   ├── check_hw.py
+│   └── send_new_data.py
 ├── solution/
 │   ├── src/
 │   │   ├── features.py
@@ -195,7 +196,7 @@ python solution/src/train.py --model-type random_forest --run-name rf_train_shif
 python solution/src/train.py --model-type gradient_boosting --run-name gb_train_v2 --train-data data/train_v2.csv --valid-data data/valid.csv
 ```
 
-MLflow UI 실행:
+이후 MLflow UI 실행하면 위에서 학습시킨 모델들의 로그를 확인할 수 있습니다:
 
 ```bash
 mlflow ui --backend-store-uri ./mlruns
@@ -217,9 +218,9 @@ http://127.0.0.1:5000
 
 ## PHASE 3: Production Model 승격
 
-MLflow UI에서 RMSE가 가장 낮은 run id를 선택합니다.
+위에서 우리가 학습시킨 모델 중 가장 좋은 것을 선택해 프로덕션 모델로 승격시켜 봅시다. MLFlow에서 모델 중 RMSE가 가장 낮은 모델을 찾아 run id를 선택합니다.
 
-아래 명령어를 실행하면 선택한 run의 `model` artifact가 `solution/models/production_model/`로 복사됩니다. 이 코드는 이미 구현되어 있습니다.
+아래 명령어를 실행하면 선택한 run의 model artifact가 solution/models/production_model/로 복사됩니다. 이 코드는 이미 구현되어 있습니다.
 
 ```bash
 python solution/src/promote_model.py --run-id <BEST_RUN_ID>
@@ -229,11 +230,15 @@ python solution/src/promote_model.py --run-id <BEST_RUN_ID>
 
 - `solution/models/production_model/` 디렉터리가 생성됩니다.
 - `solution/models/production_model/metadata.json`이 생성됩니다.
-- metadata에 run id, model type, RMSE, promoted time이 기록됩니다.
+- metadata에 run id, model type, 학습 데이터 경로, 학습 데이터 hash, RMSE, promoted time이 기록됩니다.
 
-## PHASE 4: Production Model API 서빙
+## PHASE 4: Production Model API 서빙과 Drift Report 확인
 
-FastAPI 서버는 `solution/models/production_model/`의 모델과 `metadata.json`을 자동으로 로드합니다. 이 코드는 이미 구현되어 있습니다.
+방금 우리가 선정한 프로덕션 모델을 FastApi서버를 사용해 서빙됩니다. 서버의 코드는 이미 구현되어 있습니다. 이제 이 서버로 예측요청을 보내보고 마지막으로 Drift에 대해 실습 해봅시다.
+
+수업에서 다루었듯, Drift는 모델이 학습할 때 본 데이터 분포와 운영 중 API로 들어오는 데이터 분포가 달라지는 현상입니다. 예를 들어 학습 데이터에는 짧은 이동 거리가 많았는데, 운영 요청에는 긴 이동 거리나 주말 요청이 많아지면 모델이 익숙하지 않은 입력을 받게 됩니다. 이런 경우에는 모델 성능이 떨어질 수 있으므로, 요청의 feature 분포를 학습 데이터와 비교해 확인해야 합니다.
+
+이 과제에서는 `metadata.json`에 기록된 `train_data_path`를 기준 학습 데이터로 사용합니다. 서버가 `/predict` 요청을 받을 때마다 요청 feature와 prediction을 `solution/logs/predictions.csv`에 누적 저장하고, 이 요청 로그를 기준 학습 데이터와 비교해 `solution/reports/drift_report.txt`를 갱신합니다. 각 feature의 평균 차이를 학습 데이터의 표준편차로 나눈 값을 `drift_score`로 계산하고, 기준값 이상이면 drift가 발생한 것으로 표시합니다.
 
 서버 실행:
 
@@ -256,35 +261,46 @@ curl http://127.0.0.1:8000/health
 }
 ```
 
-예측 요청:
+학습 데이터와 다른 분포의 신규 데이터셋을 prediction API로 여러 건 요청하고, drift report 경로를 확인합니다.
+
+FastAPI 서버가 켜져 있는 상태에서 다른 터미널에서 실행하세요.
 
 ```bash
-curl -X POST http://127.0.0.1:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{"features": {"trip_distance": 3.2, "passenger_count": 1, "pickup_hour": 14, "is_weekend": 0}}'
+python scripts/send_new_data.py --data data/new_data.csv
 ```
 
-성공 기준:
+이 스크립트는 `data/new_data.csv`의 각 row를 `/predict`에 보냅니다. API는 `metadata.json`의 `train_data_path`를 기준 데이터로 사용하고, 현재 production model의 `model_run_id`와 일치하는 prediction 요청 로그를 비교해 drift report를 갱신합니다.
 
-- prediction 값이 반환됩니다.
-- 응답에 `model_run_id`가 포함됩니다.
-- `solution/logs/predictions.csv`가 생성됩니다.
+예상 출력:
 
-## PHASE 5: Drift Report 생성
+```text
+sent_rows: 10
+last_prediction: <PREDICTION>
+model_run_id: <RUN_ID>
+drift_report_path: <DRIFT_REPORT_PATH>
+```
 
-이 단계는 실행만 하면 됩니다.
+필요하면 같은 로직을 직접 실행해 report만 다시 생성할 수도 있습니다.
 
 ```bash
 python solution/src/monitor.py
 ```
 
-생성 파일:
+생성/갱신 파일:
 
 ```text
+solution/logs/predictions.csv
 solution/reports/drift_report.txt
 ```
 
-## PHASE 6: 최종 확인
+Drift report에는 다음 정보가 포함되어야 합니다.
+
+- `DRIFT_CHECK`
+- `reference_train_data_path`
+- `request_count`
+- feature별 `drift_score`
+
+## PHASE 5: 최종 확인
 
 FastAPI 서버가 켜져 있는 상태에서 아래 명령어를 실행합니다.
 
@@ -301,11 +317,20 @@ python scripts/check_hw.py
 [PASS] at least 2 different model types logged
 [PASS] train data sha256 logged for each experiment
 [PASS] valid data sha256 logged for each experiment
+[PASS] training row count logged for each experiment
 [PASS] production model directory exists
 [PASS] production metadata exists
+[PASS] production metadata has required keys
+[PASS] production metadata values are not empty
 [PASS] FastAPI health check returns 200 and model_loaded=true
 [PASS] prediction log exists
+[PASS] prediction log has required columns
+[PASS] prediction log includes feature columns
 [PASS] drift report exists
+[PASS] drift status calculated
+[PASS] drift score included in report
+[PASS] drift report includes reference training data
+[PASS] drift report includes request count
 
 RESULT: PASS
 ```
@@ -314,5 +339,4 @@ RESULT: PASS
 
 다음 항목을 제출하세요.
 
-자동 확인 결과
-   - `python scripts/check_hw.py` 실행 결과 스크린 샷
+`python scripts/check_hw.py` 실행 결과 스크린 샷

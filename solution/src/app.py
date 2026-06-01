@@ -13,11 +13,13 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from solution.src.features import request_to_dataframe
+from solution.src.features import FEATURE_COLUMNS, request_to_dataframe
+from solution.src.monitor import REPORT_PATH, write_drift_report
 
 
 PRODUCTION_MODEL_DIR = ROOT_DIR / "solution" / "models" / "production_model"
 LOG_PATH = ROOT_DIR / "solution" / "logs" / "predictions.csv"
+LOG_FIELDNAMES = ["timestamp", "model_run_id", *FEATURE_COLUMNS, "prediction"]
 
 app = FastAPI(title="MLOps Model Serving API")
 
@@ -56,27 +58,45 @@ def predict(request: PredictRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     prediction = float(model.predict(input_df)[0])
-    log_prediction(prediction)
+    log_prediction(input_df, prediction)
+    write_drift_report()
 
     return {
         "prediction": prediction,
         "model_run_id": metadata.get("run_id"),
+        "drift_report_path": str(REPORT_PATH),
     }
 
 
-def log_prediction(prediction):
+def log_prediction(input_df, prediction):
     """예측 요청 결과를 csv 파일에 누적 저장합니다."""
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    file_exists = LOG_PATH.exists()
+    reset_log = should_reset_prediction_log()
+    feature_values = input_df.iloc[0].to_dict()
 
-    with LOG_PATH.open("a", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=["timestamp", "model_run_id", "prediction"])
-        if not file_exists:
+    mode = "w" if reset_log else "a"
+    with LOG_PATH.open(mode, newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=LOG_FIELDNAMES)
+        if reset_log:
             writer.writeheader()
-        writer.writerow(
-            {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "model_run_id": metadata.get("run_id"),
-                "prediction": prediction,
-            }
-        )
+        row = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "model_run_id": metadata.get("run_id"),
+            "prediction": prediction,
+        }
+        row.update({column: feature_values[column] for column in FEATURE_COLUMNS})
+        writer.writerow(row)
+
+
+def should_reset_prediction_log():
+    if not LOG_PATH.exists() or LOG_PATH.stat().st_size == 0:
+        return True
+
+    with LOG_PATH.open("r", newline="", encoding="utf-8") as file:
+        reader = csv.reader(file)
+        try:
+            header = next(reader)
+        except StopIteration:
+            return True
+
+    return header != LOG_FIELDNAMES

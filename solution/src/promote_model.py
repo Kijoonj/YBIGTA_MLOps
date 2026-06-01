@@ -25,6 +25,8 @@ def write_metadata(run):
     metadata = {
         "run_id": run.info.run_id,
         "model_type": run.data.params.get("model_type"),
+        "train_data_path": run.data.params.get("train_data_path"),
+        "train_data_sha256": run.data.params.get("train_data_sha256"),
         "metric_name": "rmse",
         "metric_value": run.data.metrics.get("rmse"),
         "promoted_at": datetime.now(timezone.utc).isoformat(),

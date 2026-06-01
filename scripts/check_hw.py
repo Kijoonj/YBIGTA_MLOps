@@ -1,3 +1,4 @@
+import csv
 import json
 import sys
 import urllib.error
@@ -65,6 +66,15 @@ def check_health_endpoint():
         return False, str(exc)
 
 
+def read_csv_header(path):
+    with path.open("r", newline="", encoding="utf-8") as file:
+        reader = csv.reader(file)
+        try:
+            return next(reader)
+        except StopIteration:
+            return []
+
+
 def main():
     failures = []
 
@@ -92,8 +102,18 @@ def main():
     if metadata_path.exists():
         try:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-            required_keys = {"run_id", "model_type", "metric_name", "metric_value", "promoted_at"}
+            required_keys = {
+                "run_id",
+                "model_type",
+                "train_data_path",
+                "train_data_sha256",
+                "metric_name",
+                "metric_value",
+                "promoted_at",
+            }
             check(required_keys.issubset(metadata.keys()), "production metadata has required keys", failures)
+            required_values = {key: metadata.get(key) for key in required_keys}
+            check(all(value not in (None, "") for value in required_values.values()), "production metadata values are not empty", failures)
         except json.JSONDecodeError:
             check(False, "production metadata is valid json", failures)
 
@@ -102,14 +122,18 @@ def main():
 
     check(prediction_log_path.exists(), "prediction log exists", failures)
     if prediction_log_path.exists():
-        log_text = prediction_log_path.read_text(encoding="utf-8")
-        check("timestamp" in log_text and "prediction" in log_text, "prediction log has required columns", failures)
+        header = read_csv_header(prediction_log_path)
+        check({"timestamp", "model_run_id", "prediction"}.issubset(header), "prediction log has required columns", failures)
+        required_features = {"trip_distance", "passenger_count", "pickup_hour", "is_weekend"}
+        check(required_features.issubset(header), "prediction log includes feature columns", failures)
 
     check(drift_report_path.exists(), "drift report exists", failures)
     if drift_report_path.exists():
         report_text = drift_report_path.read_text(encoding="utf-8")
         check("DRIFT_CHECK:" in report_text, "drift status calculated", failures)
         check("drift_score" in report_text, "drift score included in report", failures)
+        check("reference_train_data_path" in report_text, "drift report includes reference training data", failures)
+        check("request_count" in report_text, "drift report includes request count", failures)
 
     print()
     if failures:
