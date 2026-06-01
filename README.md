@@ -14,6 +14,8 @@
 
 ## 사전 준비
 
+과제 링크 : https://github.com/Kijoonj/YBIGTA_MLOps/tree/main
+
 Python 3.10 이상을 권장합니다.
 
 macOS / Linux / WSL2:
