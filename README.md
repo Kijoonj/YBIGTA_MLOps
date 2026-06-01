@@ -344,3 +344,5 @@ RESULT: PASS
 다음 항목을 제출하세요.
 
 `python scripts/check_hw.py` 실행 결과 스크린 샷
+
+![pass사진](images/pass.png)
