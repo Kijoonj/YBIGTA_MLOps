@@ -106,29 +106,31 @@ def log_experiment_to_mlflow(args, model, metrics, feature_path, train_df, valid
 
     with mlflow.start_run(run_name=args.run_name) as run:
         # 1. 모델/실험 parameter 기록
-        mlflow.log_param("model_type", args.model_type)
-        mlflow.log_param("n_estimators", args.n_estimators)
-        mlflow.log_param("learning_rate", args.learning_rate)
-        mlflow.log_param("random_state", args.random_state)
+        mlflow.log_param("model_type", ____)
+        mlflow.log_param("n_estimators", ____)
+        mlflow.log_param("learning_rate", ____)
+        mlflow.log_param("random_state", ____)
 
         # 2. 데이터 재현성 정보 기록
-        mlflow.log_param("train_data_path", args.train_data)
-        mlflow.log_param("valid_data_path", args.valid_data)
-        mlflow.log_param("train_data_sha256", sha256_file(train_path))
-        mlflow.log_param("valid_data_sha256", sha256_file(valid_path))
-        mlflow.log_param("train_row_count", len(train_df))
-        mlflow.log_param("valid_row_count", len(valid_df))
+        mlflow.log_param("train_data_path", ____)
+        mlflow.log_param("valid_data_path", ____)
+        mlflow.log_param("train_data_sha256", sha256_file(____))
+        mlflow.log_param("valid_data_sha256", sha256_file(____))
+        mlflow.log_param("train_row_count", len(____))
+        mlflow.log_param("valid_row_count", len(____))
 
         # 3. 성능 metric 기록
-        mlflow.log_metric("rmse", metrics["rmse"])
-        mlflow.log_metric("mae", metrics["mae"])
-        mlflow.log_metric("r2", metrics["r2"])
+        mlflow.log_metric("rmse", metrics["____"])
+        mlflow.log_metric("mae", metrics["____"])
+        mlflow.log_metric("r2", metrics["____"])
 
         # 4. artifact 기록
-        mlflow.log_artifact(str(feature_path))
-        mlflow.sklearn.log_model(model, artifact_path="model")
+        mlflow.log_artifact(____)
+        mlflow.sklearn.log_model(____, artifact_path="____")
 
         print(f"run_id: {run.info.run_id}")
+
+
 def main():
     args = parse_args()
 

@@ -44,8 +44,8 @@ uvicorn --version
 
 - `baseline/` 디렉터리는 수정하지 마세요.
 - `scripts/` 디렉터리는 수정하지 마세요.
-- 학생이 수정할 파일은 `solution/src/train.py` 하나입니다.
-- `solution/src/train.py` 안의 `____` 빈칸만 수정하세요.
+- 학생이 수정할 파일은 `solution/src/train.py`와 `solution/src/monitor.py`입니다.
+- `solution/src/train.py`와 `solution/src/monitor.py` 안의 `____` 빈칸만 수정하세요.
 - 제출 전 FastAPI 서버를 켠 상태에서 `python scripts/check_hw.py`를 실행하세요.
 
 ## 폴더 구조
@@ -240,7 +240,23 @@ python solution/src/promote_model.py --run-id <BEST_RUN_ID>
 
 이 과제에서는 `metadata.json`에 기록된 `train_data_path`를 기준 학습 데이터로 사용합니다. 서버가 `/predict` 요청을 받을 때마다 요청 feature와 prediction을 `solution/logs/predictions.csv`에 누적 저장하고, 이 요청 로그를 기준 학습 데이터와 비교해 `solution/reports/drift_report.txt`를 갱신합니다. 각 feature의 평균 차이를 학습 데이터의 표준편차로 나눈 값을 `drift_score`로 계산하고, 기준값 이상이면 drift가 발생한 것으로 표시합니다.
 
-서버 실행:
+먼저 `solution/src/monitor.py`의 `build_drift_report()` 안에 있는 `____` 빈칸을 채웁니다.
+
+TODO:
+
+- 학습 데이터에서 현재 feature의 평균 계산
+- prediction 요청 로그에서 현재 feature의 평균 계산
+- 학습 데이터에서 현재 feature의 표준편차 계산
+
+TODO 형태:
+
+```python
+train_mean = ____
+request_mean = ____
+train_std = ____
+```
+
+Drift Monitoring 로직을 완성했으면 서버를 실행하고, 프로덕션 모델에게 직접 예측 요청을 날려봅시다 :
 
 ```bash
 uvicorn solution.src.app:app --host 0.0.0.0 --port 8000
@@ -261,7 +277,7 @@ curl http://127.0.0.1:8000/health
 }
 ```
 
-학습 데이터와 다른 분포의 신규 데이터셋을 prediction API로 여러 건 요청하고, drift report 경로를 확인합니다.
+이제 학습 데이터와 다른 분포의 신규 데이터셋을 prediction API로 요청하여 drift를 유발하고, drift report 생성을 확인합니다.
 
 FastAPI 서버가 켜져 있는 상태에서 다른 터미널에서 실행하세요.
 
@@ -280,20 +296,8 @@ model_run_id: <RUN_ID>
 drift_report_path: <DRIFT_REPORT_PATH>
 ```
 
-필요하면 같은 로직을 직접 실행해 report만 다시 생성할 수도 있습니다.
 
-```bash
-python solution/src/monitor.py
-```
-
-생성/갱신 파일:
-
-```text
-solution/logs/predictions.csv
-solution/reports/drift_report.txt
-```
-
-Drift report에는 다음 정보가 포함되어야 합니다.
+Drift report에는 다음 정보가 포함됩니다.
 
 - `DRIFT_CHECK`
 - `reference_train_data_path`

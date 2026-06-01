@@ -63,9 +63,10 @@ def build_drift_report(train_df, request_df, metadata, reference_path):
     drift_detected = False
 
     for feature in FEATURE_COLUMNS:
-        train_mean = train_df[feature].mean()
-        request_mean = request_df[feature].mean()
-        train_std = train_df[feature].std()
+        # TODO: reference training data와 prediction request data의 feature 통계를 계산하세요.
+        train_mean = ____
+        request_mean = ____
+        train_std = ____
 
         if pd.isna(train_std) or train_std == 0:
             drift_score = 0.0
